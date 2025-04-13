@@ -3,7 +3,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from common import OrderedImage, FloatArray, Uint8Array, float_to_uint8_array, uint8_to_float_array
+from common import OrderedImage, FloatArray, Uint8Array, float_to_uint8_array, uint8_to_float_array, MeanStdDev
+import config
 
 def basic_CLAHE_float(img: OrderedImage[FloatArray], clip_limit: float = 0.02 * 256, tile_size: int = 128) -> OrderedImage[FloatArray]:
     unpadded_h, unpadded_w = img.cf[0].shape
@@ -129,31 +130,18 @@ def adaptive_clahe_channel(float_channel: FloatArray, clip_limits: FloatArray | 
     return uint8_to_float_array(output)
 
 
-SOBEL_BLUR_KERNEL_SIZE = 15
-SOBEL_KERNEL_SIZE = (3, 3)
-
-TURBIDITY_FACTOR_SOBEL_WEIGHT = 0.6  # w_1
-TURBIDITY_FACTOR_SATURATION_WEIGHT = 1.0 - TURBIDITY_FACTOR_SOBEL_WEIGHT  # w_2
-
-NUMERATOR_SAFETY = 1e-6
-
-@dataclass
-class MeanStdDev:
-    mean: float
-    std_dev: float
-
 def sobel_mean_std_dev(img: OrderedImage[FloatArray]) -> MeanStdDev:
     gray = cv2.cvtColor(img.cl, cv2.COLOR_RGB2GRAY)
 
-    # gray = cv2.GaussianBlur(gray, (SOBEL_BLUR_KERNEL_SIZE, SOBEL_BLUR_KERNEL_SIZE), 0)
+    # gray = cv2.GaussianBlur(gray, (config.TCLAHE.SOBEL_BLUR_KERNEL_SIZE, config.TCLAHE.SOBEL_BLUR_KERNEL_SIZE), 0)
 
     # Could use Scharr or Canny instead
 
     # ddepth is output precision
     # grad_sum = cv2.Sobel(gray, ddepth=cv2.CV_32F, dx=1, dy=1, ksize=SOBEL_KERNEL_SIZE[0])
-    grad_x = cv2.Sobel(gray, ddepth=cv2.CV_32F, dx=1, dy=0, ksize=SOBEL_KERNEL_SIZE[0])
+    grad_x = cv2.Sobel(gray, ddepth=cv2.CV_32F, dx=1, dy=0, ksize=config.TCLAHE.SOBEL_KERNEL_SIZE[0])
 
-    grad_y = cv2.Sobel(gray, ddepth=cv2.CV_32F, dx=0, dy=1, ksize=SOBEL_KERNEL_SIZE[1])
+    grad_y = cv2.Sobel(gray, ddepth=cv2.CV_32F, dx=0, dy=1, ksize=config.TCLAHE.SOBEL_KERNEL_SIZE[1])
 
     # Take abs first to normalize w.r.t highest magnitude val
     grad_x = np.abs(grad_x)
@@ -177,18 +165,14 @@ def estimate_turbidity(img: OrderedImage[FloatArray]) -> float:
     sobel_msd = sobel_mean_std_dev(img)
     sat_msd = saturation_mean_std_dev(img)
 
-    weighted_sobel = TURBIDITY_FACTOR_SOBEL_WEIGHT * (sobel_msd.std_dev / (sobel_msd.mean + NUMERATOR_SAFETY))
-    weighted_sat = TURBIDITY_FACTOR_SATURATION_WEIGHT * (sat_msd.std_dev / (sat_msd.mean + NUMERATOR_SAFETY))
+    weighted_sobel = config.TCLAHE.TURBIDITY_FACTOR_SOBEL_WEIGHT * (sobel_msd.std_dev / (sobel_msd.mean + config.TCLAHE.NUMERATOR_SAFETY))
+    weighted_sat = config.TCLAHE.TURBIDITY_FACTOR_SATURATION_WEIGHT * (sat_msd.std_dev / (sat_msd.mean + config.TCLAHE.NUMERATOR_SAFETY))
     turbidity_estimate = weighted_sobel + weighted_sat
 
     return turbidity_estimate
 
+# TODO: only split into blocks once
 # def split_image_to_blocks(img: OrderedImage[FloatArray]) ->
-
-MAX_CLIP_LIMIT = 0.05 * 256  # OpenCV normalizes clip limit by dividing by max int value
-                                # int((clipLimit / 256) * (block_width * block_height))
-                                # We want to specify raw fraction, so multiply first
-CLIP_LIMIT_SAFETY = 1e-6  # TODO: the highest turbidity block always uses this, seems wrong
 
 def tclahe(img: OrderedImage[FloatArray], n: int = 64, interpolate: bool = True) -> OrderedImage[FloatArray]:
     padded_w_in_blocks = img.w // n + 1
@@ -221,7 +205,9 @@ def tclahe(img: OrderedImage[FloatArray], n: int = 64, interpolate: bool = True)
 
     clip_limits = []
     for turbidity in turbidities:
-        clip_limits.append(MAX_CLIP_LIMIT * (1 - (turbidity - min(turbidities)) / (max(turbidities) - min(turbidities))) + CLIP_LIMIT_SAFETY)
+        clip_limits.append(config.TCLAHE.MAX_CLIP_LIMIT *
+                           (1 - (turbidity - min(turbidities)) / (max(turbidities) - min(turbidities))) +
+                           config.TCLAHE.CLIP_LIMIT_SAFETY)
 
     clip_limits_array = np.asarray(clip_limits)
     clip_limits_array = np.reshape(clip_limits, shape=(padded_h_in_blocks, padded_w_in_blocks))

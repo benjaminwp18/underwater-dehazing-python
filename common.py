@@ -1,6 +1,9 @@
 import numpy as np
 from numpy.typing import NDArray
 from typing import TypeAlias
+from dataclasses import dataclass
+from enum import Enum
+import cv2
 
 FloatArray: TypeAlias = NDArray[np.float32]
 Uint8Array: TypeAlias = NDArray[np.uint8]
@@ -44,3 +47,57 @@ def cl_to_cf[T: (FloatArray, Uint8Array)](img_cl: T) -> T:
 
 # class BlockSet[T: (FloatArray, Uint8Array)]:
 #     def __init__(self, img: OrderedImage[T]):
+
+@dataclass
+class MeanStdDev:
+    mean: float
+    std_dev: float
+
+class StatType(Enum):
+    Min = 0
+    Max = 1
+    Mean = 2
+
+@dataclass
+class MinMax:
+    min: float
+    max: float
+
+@dataclass
+class MinMaxMean:
+    min: float
+    max: float
+    mean: float
+
+class Stats:
+    def __init__(self, stat_list: tuple[MinMaxMean, MinMaxMean, MinMaxMean]):
+        self._stat_list = stat_list
+        self._by_stat_type = {
+            StatType.Min: tuple([mmm.min for mmm in self._stat_list]),
+            StatType.Max: tuple([mmm.max for mmm in self._stat_list]),
+            StatType.Mean: tuple([mmm.mean for mmm in self._stat_list])
+        }
+
+    @staticmethod
+    def from_img(img: OrderedImage[FloatArray]):
+        means = cv2.mean(img.cl)[:-1]  # Remove fourth channel mean
+
+        # [(min, max, (min_loc), (max_loc)), ..., ...]
+        channel_min_max_locs = [cv2.minMaxLoc(c) for c in cv2.split(img.cl)]
+        # [(min, max), ..., ...]
+        extremes = [(locs[0], locs[1]) for locs in channel_min_max_locs]
+
+        return Stats((
+            MinMaxMean(extremes[0][0], extremes[0][1], means[0]),
+            MinMaxMean(extremes[1][0], extremes[1][1], means[1]),
+            MinMaxMean(extremes[2][0], extremes[2][1], means[2])
+        ))
+
+    def channel(self, channel_index: int) -> MinMaxMean:
+        return self._stat_list[channel_index]
+
+    def stat_array(self, stat_type: StatType) -> tuple[float, float, float]:
+        return self._by_stat_type[stat_type]
+
+    def channel_idxs_sorted_by(self, stat_type: StatType) -> tuple[int, int, int]:
+        return np.argsort(self.stat_array(stat_type))

@@ -4,64 +4,15 @@
 import time
 
 import cv2
-from matplotlib.axes import Axes
-import matplotlib.pyplot as plt
 import numpy as np
-from numpy.typing import NDArray
-from dataclasses import dataclass
 
 from pathlib import Path
-import math
 
-from enum import Enum
-
-from common import OrderedImage, FloatArray, Uint8Array, cf_to_cl, float_to_uint8_array, uint8_to_float_array
+from common import OrderedImage, FloatArray, Uint8Array, cf_to_cl, float_to_uint8_array, uint8_to_float_array, Stats, StatType, MinMaxMean
 from plotting import plot_channels, plot_img
 from clahe import basic_CLAHE_float, basic_CLAHE_u8_cl, tclahe
 
-class StatType(Enum):
-    Min = 0
-    Max = 1
-    Mean = 2
-
-@dataclass
-class MinMaxMean:
-    min: float
-    max: float
-    mean: float = None
-
-class Stats:
-    def __init__(self, stat_list: tuple[MinMaxMean, MinMaxMean, MinMaxMean]):
-        self._stat_list = stat_list
-        self._by_stat_type = {
-            StatType.Min: tuple([mmm.min for mmm in self._stat_list]),
-            StatType.Max: tuple([mmm.max for mmm in self._stat_list]),
-            StatType.Mean: tuple([mmm.mean for mmm in self._stat_list])
-        }
-
-    @staticmethod
-    def from_img(img: OrderedImage[FloatArray]):
-        means = cv2.mean(img.cl)[:-1]  # Remove fourth channel mean
-
-        # [(min, max, (min_loc), (max_loc)), ..., ...]
-        channel_min_max_locs = [cv2.minMaxLoc(c) for c in cv2.split(img.cl)]
-        # [(min, max), ..., ...]
-        extremes = [(locs[0], locs[1]) for locs in channel_min_max_locs]
-
-        return Stats((
-            MinMaxMean(extremes[0][0], extremes[0][1], means[0]),
-            MinMaxMean(extremes[1][0], extremes[1][1], means[1]),
-            MinMaxMean(extremes[2][0], extremes[2][1], means[2])
-        ))
-
-    def channel(self, channel_index: int) -> MinMaxMean:
-        return self._stat_list[channel_index]
-
-    def stat_array(self, stat_type: StatType) -> tuple[float, float, float]:
-        return self._by_stat_type[stat_type]
-
-    def channel_idxs_sorted_by(self, stat_type: StatType) -> tuple[int, int, int]:
-        return np.argsort(self.stat_array(stat_type))
+import config
 
 def load_img(path: Path) -> OrderedImage[FloatArray]:
     img_cl = cv2.imread(str(path))
@@ -77,9 +28,6 @@ def color_loss(img: OrderedImage[FloatArray], c_s: int, c_m: int, c_l: int) -> f
     means = stats.stat_array(StatType.Mean)
     return np.abs(means[c_l] - means[c_m]) + np.abs(means[c_l] - means[c_s])
 
-COLOR_LOSS_EPSILON = 0.1
-I_O = MinMaxMean(0.2, 0.8)  # Output intensity bounds
-
 def channel_correction(img: OrderedImage[FloatArray]):
     og_stats = Stats.from_img(img)
 
@@ -87,32 +35,29 @@ def channel_correction(img: OrderedImage[FloatArray]):
     c_s, c_m, c_l = og_stats.channel_idxs_sorted_by(StatType.Mean)
 
     # Increase c_l dynamic range
-    coef = (I_O.max - I_O.min) / (og_stats.channel(c_l).max - og_stats.channel(c_l).min)
-    img.cf[c_l] = I_O.min + coef * (img.cf[c_l] - og_stats.channel(c_l).min)
+    coef = (config.ColorCorrection.I_O.max - config.ColorCorrection.I_O.min) / (og_stats.channel(c_l).max - og_stats.channel(c_l).min)
+    img.cf[c_l] = config.ColorCorrection.I_O.min + coef * (img.cf[c_l] - og_stats.channel(c_l).min)
 
     # Adjust c_m & c_s relative to c_l
-    while COLOR_LOSS_EPSILON < color_loss(img, c_s, c_m, c_l):
+    while config.ColorCorrection.COLOR_LOSS_EPSILON < color_loss(img, c_s, c_m, c_l):
         stats = Stats.from_img(img)
         for c in (c_s, c_m):
             coef = (stats.channel(c_l).mean - stats.channel(c).mean) / stats.channel(c_l).mean
             img.cf[c] = img.cf[c] + coef * img.cf[c_l]
 
-
-DISPLAY_INTERMEDIARIES = False
-
-def process_img(path: Path):
+def process_img(path: Path, display_intermediaries: bool = False):
     img = load_img(path)
     og_img = img.clone()
-    if DISPLAY_INTERMEDIARIES:
+    if display_intermediaries:
         plot_channels(img)
 
     channel_correction(img)
-    if DISPLAY_INTERMEDIARIES:
+    if display_intermediaries:
         plot_channels(img)
 
     # img_clahed_basic = basic_CLAHE_float(img)
     img_clahed = tclahe(img, n=64, interpolate=True)
-    if DISPLAY_INTERMEDIARIES:
+    if display_intermediaries:
         plot_channels(img_clahed)
     plot_img(np.hstack((og_img.cl, img_clahed.cl)))
     # plot_img(np.hstack((

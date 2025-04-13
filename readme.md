@@ -2,7 +2,8 @@
 
 ## TODO
  - UDCP
- - Inefficient TCLHE: image split into chunks twice (once for turbidity estimation & once for CLAHE)
+ - TCLAHE specify # blocks instead of $n=$ block size
+ - Inefficient TCLAHE: image split into chunks twice (once for turbidity estimation & once for CLAHE)
  - Reimplement in C++
  - Contribute to OpenCV:
    - Dynamic-clip CLAHE
