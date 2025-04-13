@@ -80,17 +80,6 @@ def adaptive_clahe_channel(float_channel: FloatArray, clip_limits: FloatArray | 
         assert clip_limits.shape == (num_tiles_y, num_tiles_x), \
             f"clip_limits must match tile grid size {(num_tiles_y, num_tiles_x)}"
 
-    # Compute LUTs for each tile
-    # luts: list[list[Uint8Array]] = []
-
-    # for y in range(num_tiles_y):
-    #     luts.append([])
-    #     for x in range(num_tiles_x):
-    #         tile = channel[y * tile_size:y * tile_size + tile_size,
-    #                        x * tile_size:x * tile_size + tile_size]
-    #         int_clip_limit = int((clip_limits[y][x] / 256) * (tile_size ** 2))  # TODO: rm `/ 256`; just here to match opencv createCLAHE behavior
-    #         luts[-1].append(compute_tile_lut(tile, int_clip_limit))
-    # Precompute LUTs
     luts = np.zeros((num_tiles_y, num_tiles_x, 256), dtype=np.uint8)
     for y in range(num_tiles_y):
         for x in range(num_tiles_x):
@@ -118,12 +107,7 @@ def adaptive_clahe_channel(float_channel: FloatArray, clip_limits: FloatArray | 
 
         p = channel
 
-        # print(tile_ys, tile_xs)
-
-        # print(luts.shape)
-
         # Fetch LUT-mapped values from 4 surrounding tiles
-        # print(luts[np.asarray([[0, 0, 0]]), np.asarray([[0, 0, 0]]), 0])
         val00 = luts[tile_ys, tile_xs, p]
         val01 = luts[tile_ys, tile_xs + 1, p]
         val10 = luts[tile_ys + 1, tile_xs, p]
@@ -221,14 +205,14 @@ def tclahe(img: OrderedImage[FloatArray], n: int = 64, interpolate: bool = True)
     for channel in img.cf:
         channels.append(cv2.copyMakeBorder(channel, 0, padding_h, 0, padding_w, cv2.BORDER_DEFAULT).astype(np.float32))
 
-    img.set_cl(cv2.merge(channels).astype(np.float32))
+    img_padded = OrderedImage(cv2.merge(channels).astype(np.float32))
 
     blocks = []
 
     for y in range(padded_h_in_blocks):
         for x in range(padded_w_in_blocks):
             blocks.append(
-                OrderedImage(img.cl[y * n:y * n + n, x * n:x * n + n])
+                OrderedImage(img_padded.cl[y * n:y * n + n, x * n:x * n + n])
             )
 
     turbidities = []
@@ -238,23 +222,6 @@ def tclahe(img: OrderedImage[FloatArray], n: int = 64, interpolate: bool = True)
     clip_limits = []
     for turbidity in turbidities:
         clip_limits.append(MAX_CLIP_LIMIT * (1 - (turbidity - min(turbidities)) / (max(turbidities) - min(turbidities))) + CLIP_LIMIT_SAFETY)
-
-    # print(turbidities)
-    # print(clip_limits)
-    # plt.plot(clip_limits)
-
-    # blocks_clahe = []
-    # for i, (block, clip_limit) in enumerate(zip(blocks, clip_limits)):
-    #     clahed = basic_CLAHE_float(block, clipLimit=clip_limit, tileGridSize=(1, 1))
-    #     blocks_clahe.append(clahed)
-
-    # rows = []
-    # for i in range(0, len(blocks_clahe), padded_w_in_blocks):
-    #     rows.append(np.hstack([block.cl for block in blocks_clahe[i:i + padded_w_in_blocks]]))
-    # clahed2: FloatArray = np.vstack(rows).astype(np.float32)
-
-    # plot_hist((img.cl * 255).astype(np.uint8), 'img')
-    # plot_imgs([img, clahed1, clahed2])
 
     clip_limits_array = np.asarray(clip_limits)
     clip_limits_array = np.reshape(clip_limits, shape=(padded_h_in_blocks, padded_w_in_blocks))
