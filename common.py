@@ -73,9 +73,9 @@ class Stats:
     def __init__(self, stat_list: tuple[MinMaxMean, MinMaxMean, MinMaxMean]):
         self._stat_list = stat_list
         self._by_stat_type = {
-            StatType.Min: tuple([mmm.min for mmm in self._stat_list]),
-            StatType.Max: tuple([mmm.max for mmm in self._stat_list]),
-            StatType.Mean: tuple([mmm.mean for mmm in self._stat_list])
+            StatType.Min:  (self._stat_list[0].min,  self._stat_list[1].min,  self._stat_list[2].min),
+            StatType.Max:  (self._stat_list[0].max,  self._stat_list[1].max,  self._stat_list[2].max),
+            StatType.Mean: (self._stat_list[0].mean, self._stat_list[1].mean, self._stat_list[2].mean),
         }
 
     @staticmethod
@@ -93,11 +93,17 @@ class Stats:
             MinMaxMean(extremes[2][0], extremes[2][1], means[2])
         ))
 
-    def channel(self, channel_index: int) -> MinMaxMean:
+    def channel_stats(self, channel_index: int) -> MinMaxMean:
         return self._stat_list[channel_index]
 
-    def stat_array(self, stat_type: StatType) -> tuple[float, float, float]:
+    def stat_tuple(self, stat_type: StatType) -> tuple[float, float, float]:
         return self._by_stat_type[stat_type]
 
     def channel_idxs_sorted_by(self, stat_type: StatType) -> tuple[int, int, int]:
-        return np.argsort(self.stat_array(stat_type))
+        array = np.argsort(self.stat_tuple(stat_type))
+        return (array[0], array[1], array[2])
+
+    def __str__(self) -> str:
+        return (f'c0: {self._stat_list[0].min} < μ={self._stat_list[0].mean} < {self._stat_list[0].max}\n'
+                f'c1: {self._stat_list[1].min} < μ={self._stat_list[1].mean} < {self._stat_list[1].max}\n'
+                f'c2: {self._stat_list[2].min} < μ={self._stat_list[2].mean} < {self._stat_list[2].max}\n')

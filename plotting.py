@@ -20,7 +20,6 @@ def plot_imgs(imgs: list[OrderedImage | ImageArray], grouped: bool = True,
     if grouped:
         num_rows = math.ceil(len(imgs) / max_cols)
         fig, axs = plt.subplots(nrows=num_rows, ncols=max_cols, sharex=True, sharey=True)
-        # ax = ax.flatten()
         for i, ax in enumerate(axs.flat):
             if i < len(imgs):
                 plot_img(imgs[i], get_axes=lambda: ax, show_plot=False)
@@ -32,7 +31,7 @@ def plot_imgs(imgs: list[OrderedImage | ImageArray], grouped: bool = True,
             plot_img(img)
 
 def plot_img(img: OrderedImage | FloatArray | Uint8Array, show_plot: bool = True, get_axes: Callable[[], Axes] = lambda: plt.gca()) -> None:
-    # TODO: mypy is having a siezure over these types
+    # TODO: mypy is having a seizure over these types
     if type(img) is OrderedImage:
         plot_ordered_img(img=img, show_plot=show_plot, get_axes=get_axes)
     else:

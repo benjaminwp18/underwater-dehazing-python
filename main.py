@@ -25,25 +25,36 @@ def load_img(path: Path) -> OrderedImage[FloatArray]:
 
 def color_loss(img: OrderedImage[FloatArray], c_s: int, c_m: int, c_l: int) -> float:
     stats = Stats.from_img(img)
-    means = stats.stat_array(StatType.Mean)
+    means = stats.stat_tuple(StatType.Mean)
     return np.abs(means[c_l] - means[c_m]) + np.abs(means[c_l] - means[c_s])
 
-def channel_correction(img: OrderedImage[FloatArray]):
+def channel_correction(img: OrderedImage[FloatArray]) -> OrderedImage[FloatArray]:
     og_stats = Stats.from_img(img)
 
     # Find large channel l, medium channel m, smallest channel s
     c_s, c_m, c_l = og_stats.channel_idxs_sorted_by(StatType.Mean)
 
+    # print(og_stats)
+    # print('small', c_s, c_m, c_l, 'large')
+    # print(f'({config.ColorCorrection.I_O.max} - {config.ColorCorrection.I_O.min}) / ({og_stats.channel_stats(c_l).max} - {og_stats.channel_stats(c_l).min})')
+
     # Increase c_l dynamic range
-    coef = (config.ColorCorrection.I_O.max - config.ColorCorrection.I_O.min) / (og_stats.channel(c_l).max - og_stats.channel(c_l).min)
-    img.cf[c_l] = config.ColorCorrection.I_O.min + coef * (img.cf[c_l] - og_stats.channel(c_l).min)
+    coef = (config.ColorCorrection.I_O.max - config.ColorCorrection.I_O.min) / (og_stats.channel_stats(c_l).max - og_stats.channel_stats(c_l).min)
+
+    print('Coef:', coef)
+
+    corrected_img = img.clone()
+
+    corrected_img.cf[c_l] = config.ColorCorrection.I_O.min + coef * (corrected_img.cf[c_l] - og_stats.channel_stats(c_l).min)
 
     # Adjust c_m & c_s relative to c_l
-    while config.ColorCorrection.COLOR_LOSS_EPSILON < color_loss(img, c_s, c_m, c_l):
-        stats = Stats.from_img(img)
+    while config.ColorCorrection.COLOR_LOSS_EPSILON < color_loss(corrected_img, c_s, c_m, c_l):
+        stats = Stats.from_img(corrected_img)
         for c in (c_s, c_m):
-            coef = (stats.channel(c_l).mean - stats.channel(c).mean) / stats.channel(c_l).mean
-            img.cf[c] = img.cf[c] + coef * img.cf[c_l]
+            coef = (stats.channel_stats(c_l).mean - stats.channel_stats(c).mean) / stats.channel_stats(c_l).mean
+            corrected_img.cf[c] = corrected_img.cf[c] + coef * corrected_img.cf[c_l]
+
+    return corrected_img
 
 def process_img(path: Path, display_intermediaries: bool = False):
     img = load_img(path)
@@ -51,14 +62,17 @@ def process_img(path: Path, display_intermediaries: bool = False):
     if display_intermediaries:
         plot_channels(img)
 
-    channel_correction(img)
+    corrected_img = channel_correction(img)
     if display_intermediaries:
         plot_channels(img)
 
-    # img_clahed_basic = basic_CLAHE_float(img)
-    img_clahed = tclahe(img, n=64, interpolate=True)
+    # img_clahed = img
+
+    # img_clahed = basic_CLAHE_float(corrected_img)
+    img_clahed = tclahe(corrected_img, n=32, interpolate=True)
     if display_intermediaries:
         plot_channels(img_clahed)
+
     plot_img(np.hstack((og_img.cl, img_clahed.cl)))
     # plot_img(np.hstack((
     #     cv2.copyMakeBorder(og_img.cl, 0, img_clahed.h - og_img.h, 0, img_clahed.w - og_img.w, cv2.BORDER_DEFAULT).astype(np.float32),
@@ -107,12 +121,12 @@ def process_video(path: Path, side_by_side: bool = True, nth_frame: int = 3, num
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    # path = Path('crab') / '0.png'
-    path = Path('milk') / 'a15.jpg'
-    # path = Path('deepblue') / '8.jpg'
+    # path = Path('crab') / '1.png'
+    # path = Path('milk') / 'a15.jpg'
+    path = Path('deepblue') / '8.jpg'
 
     start_time = time.time()
-    # process_img(path)
+    process_img(path)
     # process_video(Path('lake') / '2025.03.00' / 'blue.mp4', nth_frame=1)
-    process_video(Path('lake') / '2025.03.00' / 'brown.2.mp4', nth_frame=1)
+    # process_video(Path('lake') / '2025.03.00' / 'brown.2.mp4', nth_frame=1)
     print(f'--- {time.time() - start_time} seconds ---')

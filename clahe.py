@@ -210,7 +210,7 @@ def tclahe(img: OrderedImage[FloatArray], n: int = 64, interpolate: bool = True)
                            config.TCLAHE.CLIP_LIMIT_SAFETY)
 
     clip_limits_array = np.asarray(clip_limits)
-    clip_limits_array = np.reshape(clip_limits, shape=(padded_h_in_blocks, padded_w_in_blocks))
+    clip_limits_array = np.reshape(clip_limits, (padded_h_in_blocks, padded_w_in_blocks))
 
     clahed3 = adaptive_clahe(img_before_padding, clip_limits_array, tile_size=n, interpolate=interpolate)
 
