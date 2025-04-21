@@ -28,7 +28,7 @@ def color_loss(img: OrderedImage[FloatArray], c_s: int, c_m: int, c_l: int) -> f
     means = stats.stat_tuple(StatType.Mean)
     return np.abs(means[c_l] - means[c_m]) + np.abs(means[c_l] - means[c_s])
 
-def channel_correction(img: OrderedImage[FloatArray]) -> OrderedImage[FloatArray]:
+def channel_correction(img: OrderedImage[FloatArray]) -> None:
     og_stats = Stats.from_img(img)
 
     # Find large channel l, medium channel m, smallest channel s
@@ -43,18 +43,16 @@ def channel_correction(img: OrderedImage[FloatArray]) -> OrderedImage[FloatArray
 
     print('Coef:', coef)
 
-    corrected_img = img.clone()
+    # corrected_img = img.clone()
 
-    corrected_img.cf[c_l] = config.ColorCorrection.I_O.min + coef * (corrected_img.cf[c_l] - og_stats.channel_stats(c_l).min)
+    img.cf[c_l] = config.ColorCorrection.I_O.min + coef * (img.cf[c_l] - og_stats.channel_stats(c_l).min)
 
     # Adjust c_m & c_s relative to c_l
-    while config.ColorCorrection.COLOR_LOSS_EPSILON < color_loss(corrected_img, c_s, c_m, c_l):
-        stats = Stats.from_img(corrected_img)
+    while config.ColorCorrection.COLOR_LOSS_EPSILON < color_loss(img, c_s, c_m, c_l):
+        stats = Stats.from_img(img)
         for c in (c_s, c_m):
             coef = (stats.channel_stats(c_l).mean - stats.channel_stats(c).mean) / stats.channel_stats(c_l).mean
-            corrected_img.cf[c] = corrected_img.cf[c] + coef * corrected_img.cf[c_l]
-
-    return corrected_img
+            img.cf[c] = img.cf[c] + coef * img.cf[c_l]
 
 def process_img(path: Path, display_intermediaries: bool = False):
     img = load_img(path)
@@ -62,14 +60,14 @@ def process_img(path: Path, display_intermediaries: bool = False):
     if display_intermediaries:
         plot_channels(img)
 
-    corrected_img = channel_correction(img)
+    channel_correction(img)
     if display_intermediaries:
         plot_channels(img)
 
     # img_clahed = img
 
     # img_clahed = basic_CLAHE_float(corrected_img)
-    img_clahed = tclahe(corrected_img, n=32, interpolate=True)
+    img_clahed = tclahe(img, n=32, interpolate=True)
     if display_intermediaries:
         plot_channels(img_clahed)
 

@@ -1,7 +1,7 @@
 from common import MinMax
 
 class ColorCorrection:
-    COLOR_LOSS_EPSILON = 1.0  # ε in (6)
+    COLOR_LOSS_EPSILON = 0.1  # ε in (6)
     I_O = MinMax(0.2, 0.8)  # Output intensity bounds, I_o^min & I_o^max in (3)
 
 class TCLAHE:
