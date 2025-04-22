@@ -17,3 +17,9 @@ class TCLAHE:
                                  # int((clipLimit / 256) * (block_width * block_height))
                                  # We want to specify raw fraction, so multiply first
     CLIP_LIMIT_SAFETY = 1e-6  # TODO: the highest turbidity block always uses this, seems wrong
+
+class Metrics:
+    class UCIQE:
+        C1 = 0.4680
+        C2 = 0.2745
+        C3 = 0.2576

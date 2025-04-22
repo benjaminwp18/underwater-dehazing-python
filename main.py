@@ -41,8 +41,6 @@ def channel_correction(img: OrderedImage[FloatArray]) -> None:
     # Increase c_l dynamic range
     coef = (config.ColorCorrection.I_O.max - config.ColorCorrection.I_O.min) / (og_stats.channel_stats(c_l).max - og_stats.channel_stats(c_l).min)
 
-    print('Coef:', coef)
-
     # corrected_img = img.clone()
 
     img.cf[c_l] = config.ColorCorrection.I_O.min + coef * (img.cf[c_l] - og_stats.channel_stats(c_l).min)
@@ -63,8 +61,6 @@ def process_img(path: Path, display_intermediaries: bool = False):
     channel_correction(img)
     if display_intermediaries:
         plot_channels(img)
-
-    # img_clahed = img
 
     # img_clahed = basic_CLAHE_float(corrected_img)
     img_clahed = tclahe(img, n=32, interpolate=True)

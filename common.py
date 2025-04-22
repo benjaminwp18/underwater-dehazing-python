@@ -31,7 +31,7 @@ class OrderedImage[T: (FloatArray, Uint8Array)]:
         return OrderedImage(float_to_uint8_array(self.cl))
 
     def clone(self) -> 'OrderedImage':
-        return OrderedImage(self.cl)
+        return OrderedImage(self.cl.copy())
 
 def float_to_uint8_array(float_array: FloatArray) -> Uint8Array:
     return (np.copy(float_array) * 255).astype(np.uint8)
