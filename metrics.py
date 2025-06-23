@@ -12,7 +12,7 @@ def uciqe(img: OrderedImage[FloatArray]) -> float:
 
     luminances = lab_img.cf[0]
     a = lab_img.cf[1]
-    b = lab_img.cf[1]
+    b = lab_img.cf[2]
 
     chromas = np.sqrt(a ** 2 + b ** 2)
     chroma_std_dev = np.std(chromas)
