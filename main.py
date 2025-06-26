@@ -14,9 +14,11 @@ from clahe import basic_CLAHE_float, basic_CLAHE_u8_cl, tclahe
 
 import config
 
-def load_img(path: Path) -> OrderedImage[FloatArray]:
+def load_img(path: Path, resize: bool = True) -> OrderedImage[FloatArray]:
     img_cl = cv2.imread(str(path))
-    img_cl = cv2.resize(img_cl, (img_cl.shape[1] // 6, img_cl.shape[0] // 6)).astype(np.uint8)
+    if resize:
+        img_cl = cv2.resize(img_cl, (img_cl.shape[1] // 6, img_cl.shape[0] // 6))
+    img_cl = img_cl.astype(np.uint8)
     img_cl = uint8_to_float_array(img_cl.astype(np.uint8))
 
     img = OrderedImage(img_cl)
@@ -52,8 +54,8 @@ def channel_correction(img: OrderedImage[FloatArray]) -> None:
             coef = (stats.channel_stats(c_l).mean - stats.channel_stats(c).mean) / stats.channel_stats(c_l).mean
             img.cf[c] = img.cf[c] + coef * img.cf[c_l]
 
-def process_img(path: Path, display_intermediaries: bool = False):
-    img = load_img(path)
+def process_img(path: Path, display_intermediaries: bool = False, resize: bool = True) -> None:
+    img = load_img(path, resize=resize)
     og_img = img.clone()
     if display_intermediaries:
         plot_channels(img)
@@ -67,7 +69,8 @@ def process_img(path: Path, display_intermediaries: bool = False):
     if display_intermediaries:
         plot_channels(img_clahed)
 
-    plot_img(np.hstack((og_img.cl, img_clahed.cl)))
+    # plot_img(np.hstack((og_img.cl, img_clahed.cl)))
+    cv2.imwrite(str(path.parent / 'tclahe' / path.name), float_to_uint8_array(img_clahed.cl))
     # plot_img(np.hstack((
     #     cv2.copyMakeBorder(og_img.cl, 0, img_clahed.h - og_img.h, 0, img_clahed.w - og_img.w, cv2.BORDER_DEFAULT).astype(np.float32),
     #     img_clahed.cl
@@ -117,10 +120,16 @@ def process_video(path: Path, side_by_side: bool = True, nth_frame: int = 3, num
 if __name__ == '__main__':
     # path = Path('crab') / '1.png'
     # path = Path('milk') / 'a15.jpg'
-    path = Path('deepblue') / '8.jpg'
+    # path = Path('deepblue') / '08.jpg'
 
-    start_time = time.time()
-    process_img(path)
+    folder = Path('deepblue_small')
+    for path in folder.iterdir():
+        if path.suffix in ('.jpg', '.png'):
+            print(f'Processing {path}')
+            process_img(path, resize=False)
+
+    # start_time = time.time()
+    # process_img(path)
     # process_video(Path('lake') / '2025.03.00' / 'blue.mp4', nth_frame=1)
     # process_video(Path('lake') / '2025.03.00' / 'brown.2.mp4', nth_frame=1)
-    print(f'--- {time.time() - start_time} seconds ---')
+    # print(f'--- {time.time() - start_time} seconds ---')
