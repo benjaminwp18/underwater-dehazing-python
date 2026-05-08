@@ -1,4 +1,8 @@
-# Underwater Image Enhancement
+# Underwater Dehazing Python
+
+Python implementation of [High-Turbidity Underwater Image Enhancement via Turbidity Suppression Fusion](https://ieeexplore.ieee.org/document/10770246). The final stage of the pipeline (UDCP) is unimplemented.
+
+See [stepwise.ipynb](stepwise.ipynb) for example usage.
 
 ## TODO
  - UDCP
